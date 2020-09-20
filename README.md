@@ -1,23 +1,29 @@
-# Tensorflow 기반 YOLO v4 모델을 AWS Lambda 런타임에서 추론하기
+# AWS Lambda에서 ML 추론하기 (Tensorflow lite + YOLO v4)
 
 ---
-## 1. Lambda 생성 및 환경 설정
+## 1. Lambda 개발 환경과 기본코드 생성 
 
-### 1-1. aws sam 셋업
-#### aws sam 개발환경
+로컬 PC, Linux EC2, 또는 Cloud9 환경에서 lambda 코드개발을 할 수 있도록 준비합니다.
 
+### 1-1. AWS SAM (Serverless Application Model) 셋업
+
+#### aws sam 설치
+
+aws cli 및 docker와 함께 aws sam cli를 설치합니다. 운영체제별로 다음 가이드를 참고합니다. 
+https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html
 - aws cli 설치
 - docker 설치
-- aws sam cli 설치 - [https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install-mac.html](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install-mac.html)
+- aws sam cli 설치 
 
 
 #### Hello world 프로젝트 생성 및 테스트
 
-lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 추론코드를 추가하겠습니다.
+lambda Hellow wolrd 프로젝트를 생성합니다. (해당 템플릿에 Tensorflow dependency와 추론코드를 추가할 예정)  
+터미널 환경에서 workspace용 폴더를 생성한 후 차례로 다음 aws sam cli를 명령을 실행합니다. sam init 실행시 지정하는 프로젝트명으로 폴더가 생성되고 기본코드가 추가됩니다.
 
-- sam init
+- sam init (이후 사용할 Yolo모델과의 호환성을 위해 python 3.7 환경에서 작업합니다.)
 
-```
+```bash
     $ sam init
 
     Which template source would you like to use?
@@ -83,7 +89,9 @@ lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 
 
     5 directories, 8 files
 ```
-- sam build
+
+
+- sam build (프로젝트 폴더(여기서는 `tflite-lambda-p37`)에서 작업합니다.)
 ```bash
     $ cd tflite-lambda-p37/
     $ sam build
@@ -105,7 +113,7 @@ lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 
     $
 ```
 
-- sam deploy
+- sam deploy (처음 실행시 `--guided` 옵션과 함께 실행)
 ```bash
     $ sam deploy --guided
 
@@ -170,76 +178,38 @@ lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 
 
     Successfully created/updated stack - tflite-lambda-p37-stack in us-east-1
 ```
+
 - test
 ```bash
-    $ sam deploy --guided
+    # 생성된 API Gateway 호출 테스트
+    $ curl https://fqbghcm942.execute-api.us-east-1.amazonaws.com/Prod/hello/
+    {"message": "hello world"}
 
-    Configuring SAM deploy
-    ======================
+    # 로컬 환경에서 테스트
+    $ sam local invoke
+    Invoking app.lambda_handler (python3.6)
+    Image was not found.
+    Building image.....................................................................................................................................................................................................................................................................................................................................................................................................................................
+    Skip pulling image and use local one: amazon/aws-sam-cli-emulation-image-python3.6:rapid-1.2.0.
 
-        Looking for samconfig.toml :  Not found
+    Mounting /Users/kseongmo/AWS/sam/tflite-lambda-p37-stack/.aws-sam/build/HelloWorldFunction as /var/task:ro,delegated inside runtime container
+    START RequestId: 646b7b84-e251-1cd6-186d-1bca97f91ca8 Version: $LATEST
+    END RequestId: 646b7b84-e251-1cd6-186d-1bca97f91ca8
+    REPORT RequestId: 646b7b84-e251-1cd6-186d-1bca97f91ca8	Init Duration: 205.13 ms	Duration: 3.78 ms	Billed Duration: 100 ms	Memory Size: 128 MB	Max Memory Used: 26 MB
 
-        Setting default arguments for 'sam deploy'
-        =========================================
-        Stack Name [sam-app]: tflite-lambda-p37-stack
-        AWS Region [us-east-1]:
-        #Shows you resources changes to be deployed and require a 'Y' to initiate deploy
-        Confirm changes before deploy [y/N]: y
-        #SAM needs permission to be able to create roles to connect to the resources in your template
-        Allow SAM CLI IAM role creation [Y/n]: y
-        HelloWorldFunction may not have authorization defined, Is this okay? [y/N]: y
-        Save arguments to samconfig.toml [Y/n]: y
-
-        Looking for resources needed for deployment: Not found.
-        Creating the required resources...
-
-    ...
-
-    CloudFormation stack changeset
-    -------------------------------------------------------------------------------------------------------------
-    Operation             LogicalResourceId                            ResourceType
-    -------------------------------------------------------------------------------------------------------------
-    + Add                 HelloWorldFunctionHelloWorldPermissionProd   AWS::Lambda::Permission
-    + Add                 HelloWorldFunctionRole                       AWS::IAM::Role
-    + Add                 HelloWorldFunction                           AWS::Lambda::Function
-    + Add                 ServerlessRestApiDeployment47fc2d5f9d        AWS::ApiGateway::Deployment
-    + Add                 ServerlessRestApiProdStage                   AWS::ApiGateway::Stage
-    + Add                 ServerlessRestApi                            AWS::ApiGateway::RestApi
-    -------------------------------------------------------------------------------------------------------------
-
-    Changeset created successfully. arn:aws:cloudformation:us-east-1:308961792850:changeSet/samcli-deploy1600238401/d6b23082-7c6b-4f24-b3cb-d60a8973d892
-
-
-    Previewing CloudFormation changeset before deployment
-    ======================================================
-    Deploy this changeset? [y/N]: y
-
-    ...
-
-    CloudFormation outputs from deployed stack
-    --------------------------------------------------------------------------------------------------------------------------------------
-    Outputs
-    --------------------------------------------------------------------------------------------------------------------------------------
-    Key                 HelloWorldFunctionIamRole
-    Description         Implicit IAM Role created for Hello World function
-    Value               arn:aws:iam::308961792850:role/tflite-lambda-p37-stack-HelloWorldFunctionRole-17AT0X2DHWKHQ
-
-    Key                 HelloWorldApi
-    Description         API Gateway endpoint URL for Prod stage for Hello World function
-    Value               https://fqbghcm942.execute-api.us-east-1.amazonaws.com/Prod/hello/
-
-    Key                 HelloWorldFunction
-    Description         Hello World Lambda Function ARN
-    Value               arn:aws:lambda:us-east-1:308961792850:function:tflite-lambda-p37-stack-HelloWorldFunction-5F1UX2QAUT0V
-    --------------------------------------------------------------------------------------------------------------------------------------
-
-    Successfully created/updated stack - tflite-lambda-p37-stack in us-east-1
+    {"statusCode":200,"body":"{\"message\": \"hello world\"}"}
+    $
 ```
+
 ### 1-2. Tensorflow Lite 런타임 dependency 패키지 생성
 
 #### Tensorflow lite Docker build
 
 - 참조소스 : [https://github.com/tpaul1611/python_tflite_for_amazonlinux](https://github.com/tpaul1611/python_tflite_for_amazonlinux)
+
+자원 제약적인 Lambda 환경에서 Tensorflow를 실행하기 위해 라이브러리 경량화가 필요합니다. 이를 위해 Tensorflow lite를 실행환경으로 사용할 것이고, Tensorflow lite 라이브러리 중에서 추론에 필요한 Tensorflow lite runtime 부분만 가져옵니다. 
+
+로컬 환경에서 다음 Docker파일을 이용하여 Lambda 환경을 생성하고, 이 환경(컨테이너 내부)에 tensorflow 소스를 clone 한 후 lite library의 패키징 작업을 실행할 것입니다.
 
 ```docker
     FROM amazonlinux
@@ -259,10 +229,20 @@ lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 
     CMD tail -f /dev/null
 ```
 
-다음 코드를 터미널에서 실행하여 Docker 이미지를 빌드하고 실행합니다.
-- `lambda-layers/python/lib/python3.7` 경로에 `site-packages` 디렉토리를 생성하고 관련된 의존관계들이 파일로 생성됩니다.
-- Lambda의 `app.py`파일이 있는 폴더(본 예제에서 `hello_world`와 동일한 레벨의 경로에 파일들이 위치하는지 확인합니다.
-- coco.names 와 kite.jpg 파일을 추가합니다. (각각 서브모듈 `tensorflow-yolov4-tflite`의 `data/classes`와 `data/images` 경로에 있습니다.) -> 해당 파일은 이후 추론코드에서 사용할 것입니다.
+Docker 빌드와 실행을 위해 다음 코드를 실행합니다. 파라미터로 패싱하고 있는 경로설정에 주의합니다. (또는 별도 디렉토리에서 작업 후 복사해도 됩니다.)
+- `lambda-layers/python/lib/python3.7` 경로에 `site-packages` 디렉토리를 생성하고 관련된 의존관계들이 위치하도록 합니다. 
+- `lambda-layers` 디렉토리가 Lambda의 `app.py`파일이 있는 폴더(본 예제에서 `hello_world`)와 동일한 레벨의 경로에 파일들이 위치하는지 확인합니다.
+
+```bash   
+    docker build -t tflite_amazonlinux .
+    docker run -d --name=tflite_amazonlinux tflite_amazonlinux
+    mkdir lambda-layers/python/lib/python3.7
+    docker cp tflite_amazonlinux:/usr/local/lib64/python3.7/site-packages lambda-layers/python/lib/python3.7
+    docker stop tflite_amazonlinux
+```
+
+coco.names 와 kite.jpg 파일을 추가합니다. 해당 파일은 이후 추론코드에서 사용할 것입니다. (각각 본 github 코드의 서브모듈 `tensorflow-yolov4-tflite`의 `data/classes`와 `data/images` 경로에 있습니다.) 
+최종 생성된 폴더 구조는 다음과 같습니다. (lambda-layer 경로를 확인합니다.)
 
 ```bash
     $ tree .
@@ -292,16 +272,11 @@ lambda Hellow wolrd 템플릿으로부터 시작하여 Tensorflow dependency와 
             └── unit
                 ├── __init__.py
                 └── test_handler.py
-    
-    docker build -t tflite_amazonlinux .
-    docker run -d --name=tflite_amazonlinux tflite_amazonlinux
-    mkdir lambda-layers/python/lib/python3.7
-    docker cp tflite_amazonlinux:/usr/local/lib64/python3.7/site-packages lambda-layers/python/lib/python3.7
-    docker stop tflite_amazonlinux
+                
 ```
 #### requirements.txt 수정
 
-다음 라이브러리들을 추가합니다.
+Lambda 환경에서 사용할 라이브러리들을 추가로 지정합니다.
 
 ```
     requests
@@ -397,7 +372,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
     python save_model.py --weights ./data/yolov4.weights --output ./checkpoints/yolov4-416-lite --input_size 416 --model yolov4 --framework tflite 
     python convert_tflite.py --weights ./checkpoints/yolov4-416-lite --output ./checkpoints/yolov4-416.tflite
 ```
-컨버전으로 생성된 .tflite 파일을 s3에 업로드합니다.
+컨버전으로 생성된 .tflite 파일을 s3에 업로드합니다. (버킷명과 파일명을 기억하고 다음단계 추론코드 작성시 수정반영합니다.)
 
 ### 2-2. 추론코드 작성 
 
@@ -405,7 +380,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 본 리포지토리에 있는 [yolov4-tflite-inf.ipynb]('./yolov4-tflite-inf.ipynb') 파일에서 Tensorflow Lite를 이용한 yolo v4의 추론 과정을 단계적으로 테스트해 볼 수 있습니다.
 
 #### 람다코드 수정
-아래 코드블록을 참고하여 app.py를 수정합니다.
+아래 코드블록을 참고하여 `app.py`를 수정합니다.
 - 람다 구성시 다음 과정을 실행하도록 구성되었습니다.
     + 필요한 라이브러리와 레이블파일(coco.names) 등을 로드합니다.
     + s3에 있는 모델 파일(.tflite)을 /tmp 디렉토리로 복사합니다.
@@ -503,6 +478,8 @@ teamplate.yaml의 다음 부분을 수정합니다.
 ```
 ### 2-3. 추론 테스트
 
+200 응답과 함께 object detection 실행 후 bounding box와 분류한 class id가 잘 리턴되는지 확인합니다.
+
 - local build 및 테스트
 ```bash
     $ sam build
@@ -536,7 +513,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 
 ```
   
-- deploy  
+- deploy (로그 결과는 상이할 수 있습니다.)
 
 ```bash
     $ sam deploy
@@ -560,14 +537,14 @@ teamplate.yaml의 다음 부분을 수정합니다.
     Waiting for changeset to be created..
 
     CloudFormation stack changeset
-    ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    Operation                                                     LogicalResourceId                                             ResourceType                                                
-    ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    + Add                                                         TFLiteLayer6e78283671                                         AWS::Lambda::LayerVersion                                   
-    * Modify                                                      HelloWorldFunction                                            AWS::Lambda::Function                                       
-    * Modify                                                      ServerlessRestApi                                             AWS::ApiGateway::RestApi                                    
-    - Delete                                                      TFLiteLayer4f4c2c6cd9                                         AWS::Lambda::LayerVersion                                   
-    ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    Operation                             LogicalResourceId                             ResourceType
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    + Add                                 TFLiteLayer6e78283671                         AWS::Lambda::LayerVersion
+    * Modify                              HelloWorldFunction                            AWS::Lambda::Function
+    * Modify                              ServerlessRestApi                             AWS::ApiGateway::RestApi
+    - Delete                              TFLiteLayer4f4c2c6cd9                         AWS::Lambda::LayerVersion
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     Changeset created successfully. arn:aws:cloudformation:us-east-1:308961792850:changeSet/samcli-deploy1600608648/e9fe393f-1a19-452d-8483-582116de14cf
 
@@ -579,35 +556,33 @@ teamplate.yaml의 다음 부분을 수정합니다.
     2020-09-20 22:34:38 - Waiting for stack create/update to complete
 
     CloudFormation events from changeset
-    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    ResourceStatus                                ResourceType                                  LogicalResourceId                             ResourceStatusReason                        
-    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    CREATE_IN_PROGRESS                            AWS::Lambda::LayerVersion                     TFLiteLayer6e78283671                         -                                           
-    CREATE_COMPLETE                               AWS::Lambda::LayerVersion                     TFLiteLayer6e78283671                         -                                           
-    CREATE_IN_PROGRESS                            AWS::Lambda::LayerVersion                     TFLiteLayer6e78283671                         Resource creation Initiated                 
-    UPDATE_IN_PROGRESS                            AWS::Lambda::Function                         HelloWorldFunction                            -                                           
-    UPDATE_COMPLETE                               AWS::Lambda::Function                         HelloWorldFunction                            -                                           
-    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS           AWS::CloudFormation::Stack                    tflite-lambda-p37-stack                       -                                           
-    UPDATE_COMPLETE                               AWS::CloudFormation::Stack                    tflite-lambda-p37-stack                       -                                           
-    DELETE_SKIPPED                                AWS::Lambda::LayerVersion                     TFLiteLayer4f4c2c6cd9                         -                                           
-    -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    ResourceStatus                        ResourceType                      LogicalResourceId                 ResourceStatusReason
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    CREATE_IN_PROGRESS                    AWS::Lambda::LayerVersion         TFLiteLayer6e78283671             Resource creation Initiated
+    UPDATE_IN_PROGRESS                    AWS::Lambda::Function             HelloWorldFunction                -
+    UPDATE_COMPLETE                       AWS::Lambda::Function             HelloWorldFunction                -
+    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS   AWS::CloudFormation::Stack        tflite-lambda-p37-stack           -
+    UPDATE_COMPLETE                       AWS::CloudFormation::Stack        tflite-lambda-p37-stack           -
+    DELETE_SKIPPED                        AWS::Lambda::LayerVersion         TFLiteLayer4f4c2c6cd9             -
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     CloudFormation outputs from deployed stack
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    Outputs                                                                                                                                                                                
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    Key                 HelloWorldFunctionIamRole                                                                                                                                          
-    Description         Implicit IAM Role created for Hello World function                                                                                                                 
-    Value               arn:aws:iam::308961792850:role/tflite-lambda-p37-stack-HelloWorldFunctionRole-1GEQ2RVG1SV6U                                                                        
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    Outputs
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
+    Key                 HelloWorldFunctionIamRole
+    Description         Implicit IAM Role created for Hello World function
+    Value               arn:aws:iam::308961792850:role/tflite-lambda-p37-stack-HelloWorldFunctionRole-1GEQ2RVG1SV6U
 
-    Key                 HelloWorldApi                                                                                                                                                      
-    Description         API Gateway endpoint URL for Prod stage for Hello World function                                                                                                   
-    Value               https://b5cx3bjykd.execute-api.us-east-1.amazonaws.com/Prod/hello/                                                                                                 
+    Key                 HelloWorldApi
+    Description         API Gateway endpoint URL for Prod stage for Hello World function
+    Value               https://b5cx3bjykd.execute-api.us-east-1.amazonaws.com/Prod/hello/
 
-    Key                 HelloWorldFunction                                                                                                                                                 
-    Description         Hello World Lambda Function ARN                                                                                                                                    
-    Value               arn:aws:lambda:us-east-1:308961792850:function:tflite-lambda-p37-stack-HelloWorldFunction-K7KKUKQO33FF                                                             
-    ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    Key                 HelloWorldFunction
+    Description         Hello World Lambda Function ARN
+    Value               arn:aws:lambda:us-east-1:308961792850:function:tflite-lambda-p37-stack-HelloWorldFunction-K7KKUKQO33FF
+    --------------------------------------------------------------------------------------------------------------------------------------------------------
 
     Successfully created/updated stack - tflite-lambda-p37-stack in us-east-1
 
@@ -622,7 +597,9 @@ teamplate.yaml의 다음 부분을 수정합니다.
 
 ```
 ---
-## 3. 정리
+## 3. 추가 수정 과제
 
-(WIP)
+현재 코드는 추론과정의 설명을 목적으로 입력 jpg파일을 내부에 저장하고 사용하였습니다. 이후 Http request를 통해 요청별로 다른 이미지를 처리할 수 있도록 수정 필요합니다. 
+후처리 부분에서도 고정된 threshold값에 대한 filtering과 argmax만 적용되습니다. 필요에 따라 threshold 조정, 포맷 변환, Non max suppression 적용 등이 필요할 수 있습니다.
+
 
