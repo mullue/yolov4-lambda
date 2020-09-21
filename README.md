@@ -229,7 +229,7 @@ lambda Hellow wolrd 프로젝트를 생성합니다. (해당 템플릿에 Tensor
     CMD tail -f /dev/null
 ```
 
-Docker 빌드와 실행을 위해 다음 코드를 실행합니다. 파라미터로 패싱하고 있는 경로설정에 주의합니다. (또는 별도 디렉토리에서 작업 후 복사해도 됩니다.)
+Docker 빌드와 실행을 위해 다음 코드를 실행합니다. 파라미터로 패싱하고 있는 경로설정에 주의합니다. (또는 별도 디렉토리에서 작업 후 site-packages 폴더를 타겟경로로 복사해도 됩니다.)
 - `lambda-layers/python/lib/python3.7` 경로에 `site-packages` 디렉토리를 생성하고 관련된 의존관계들이 위치하도록 합니다. 
 - `lambda-layers` 디렉토리가 Lambda의 `app.py`파일이 있는 폴더(본 예제에서 `hello_world`)와 동일한 레벨의 경로에 파일들이 위치하는지 확인합니다.
 
@@ -241,8 +241,9 @@ Docker 빌드와 실행을 위해 다음 코드를 실행합니다. 파라미터
     docker stop tflite_amazonlinux
 ```
 
-coco.names 와 kite.jpg 파일을 추가합니다. 해당 파일은 이후 추론코드에서 사용할 것입니다. (각각 본 github 코드의 서브모듈 `tensorflow-yolov4-tflite`의 `data/classes`와 `data/images` 경로에 있습니다.) 
-최종 생성된 폴더 구조는 다음과 같습니다. (lambda-layer 경로를 확인합니다.)
+coco.names 와 kite.jpg 파일을 추가합니다. 해당 파일은 이후 추론코드에서 사용할 것입니다. (각각 본 github 코드의 서브모듈 `tensorflow-yolov4-tflite`의 `data/classes`와 `data/images` 경로에 있습니다.)  
+
+최종 생성된 폴더 구조는 다음과 같습니다. (`lambda-layer` 의 위치와 내부 경로를 확인합니다.)
 
 ```bash
     $ tree .
@@ -276,7 +277,7 @@ coco.names 와 kite.jpg 파일을 추가합니다. 해당 파일은 이후 추�
 ```
 #### requirements.txt 수정
 
-Lambda 환경에서 사용할 라이브러리들을 추가로 지정합니다.
+Lambda 환경에서 사용할 라이브러리들을 추가로 지정합니다. 
 
 ```
     requests
@@ -287,6 +288,7 @@ Lambda 환경에서 사용할 라이브러리들을 추가로 지정합니다.
     matplotlib
     pillow
 ```
+
 ### 1-3. Lambda layer 추가
 
 #### template.yaml 파일 수정
@@ -361,18 +363,21 @@ teamplate.yaml의 다음 부분을 수정합니다.
 ---
 ## 2. Yolo v4 모델 deploy
 
-- 참조소스 : https://github.com/theAIGuysCode/tensorflow-yolov4-tflite
+- 참조소스 : https://github.com/theAIGuysCode/tensorflow-yolov4-tflite (본 github 코드의 서브모듈로 추가되어 있습니다.)
 - 모델 컨버젼 부분은 원본 코드를 그대로 사용함
 - 추론용 코드는 원본의 detect.py를 바탕으로 Lambda환경에 맞게 재수정함
 
 ### 2-1. 모델 컨버젼
 
-터미널에서 다음 명령을 실행하여 tflite파일을 생성합니다. (save_model.py와 convert_tflite.py는 서브모듈의 소스를 참고합니다.)
+터미널에서 다음 명령을 실행하여 `.tflite`파일을 생성합니다. 
+- save_model.py와 convert_tflite.py는 참조소스의 루트에 위치합니다. (내부적으로 `core`에 위치한 코드들을 자체 참조합니다.)
+- yolov4.wegihts 파일은 https://drive.google.com/open?id=1cewMfusmPjYWbrnuJRuKhPMwRe_b9PaT에서 다운로드 가능합니다.
+
 ```bash
     python save_model.py --weights ./data/yolov4.weights --output ./checkpoints/yolov4-416-lite --input_size 416 --model yolov4 --framework tflite 
     python convert_tflite.py --weights ./checkpoints/yolov4-416-lite --output ./checkpoints/yolov4-416.tflite
 ```
-컨버전으로 생성된 .tflite 파일을 s3에 업로드합니다. (버킷명과 파일명을 기억하고 다음단계 추론코드 작성시 수정반영합니다.)
+컨버전으로 생성된 .tflite 파일을 s3에 업로드합니다. (버킷명과 파일명을 기억하고, 다음단계 추론코드 작성시 수정반영합니다.)
 
 ### 2-2. 추론코드 작성 
 
@@ -381,7 +386,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 
 #### 람다코드 수정
 아래 코드블록을 참고하여 `app.py`를 수정합니다.
-- 람다 구성시 다음 과정을 실행하도록 구성되었습니다.
+- 람다 로드시 다음 과정을 실행하도록 구성되었습니다.
     + 필요한 라이브러리와 레이블파일(coco.names) 등을 로드합니다.
     + s3에 있는 모델 파일(.tflite)을 /tmp 디렉토리로 복사합니다.
     + 추론 입력용 이미지를 준비합니다. (본 코드에서는 로컬경로에서 파일을 읽고 있으나, 실제 업무환경에서는 request body로 받거나 s3 경로에서 읽게 될 것입니다.)
@@ -480,7 +485,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 
 200 응답과 함께 object detection 실행 후 bounding box와 분류한 class id가 잘 리턴되는지 확인합니다.
 
-- local build 및 테스트
+- local build
 ```bash
     $ sam build
     Building function 'HelloWorldFunction'
@@ -496,7 +501,10 @@ teamplate.yaml의 다음 부분을 수정합니다.
     =========================
     [*] Invoke Function: sam local invoke
     [*] Deploy: sam deploy --guided
+```
 
+- local test
+```bash
     $ sam local invoke
     Invoking app.lambda_handler (python3.7)
     TFLiteLayer is a local Layer in the template
@@ -599,7 +607,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 ---
 ## 3. 추가 수정 과제
 
-현재 코드는 추론과정의 설명을 목적으로 입력 jpg파일을 내부에 저장하고 사용하였습니다. 이후 Http request를 통해 요청별로 다른 이미지를 처리할 수 있도록 수정 필요합니다. 
-후처리 부분에서도 고정된 threshold값에 대한 filtering과 argmax만 적용되습니다. 필요에 따라 threshold 조정, 포맷 변환, Non max suppression 적용 등이 필요할 수 있습니다.
+현재 코드는 추론과정의 설명을 목적으로 입력 jpg파일을 내부에 저장하고 사용하였습니다. 이후 Http request를 통해 요청별로 다른 이미지를 처리할 수 있도록 수정 필요합니다.  
+후처리 부분에서도 고정된 threshold값에 대한 filtering과 argmax만 적용되었습니다. 필요에 따라 threshold 조정, 포맷 변환, Non max suppression 단계 등이 필요할 수 있습니다.
 
 
