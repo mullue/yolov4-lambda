@@ -371,7 +371,7 @@ teamplate.yaml의 다음 부분을 수정합니다.
 
 터미널에서 다음 명령을 실행하여 `.tflite`파일을 생성합니다. 
 - `save_model.py`와 `convert_tflite.py`는 참조소스의 루트에 위치합니다. (해당 코드들은 내부적으로 `core`폴더에 위치한 코드들을 자체 참조합니다. 전체 소스를 clone 받은 상태에서 실행합니다.)
-- yolov4.wegihts 파일은 https://drive.google.com/open?id=1cewMfusmPjYWbrnuJRuKhPMwRe_b9PaT에서 다운로드 가능합니다.
+- yolov4.wegihts 파일은 https://drive.google.com/open?id=1cewMfusmPjYWbrnuJRuKhPMwRe_b9PaT 에서 다운로드 가능합니다.
 
 ```bash
     python save_model.py --weights ./data/yolov4.weights --output ./checkpoints/yolov4-416-lite --input_size 416 --model yolov4 --framework tflite 
